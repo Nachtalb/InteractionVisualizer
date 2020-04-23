@@ -67,7 +67,7 @@ public class NoteBlockDisplay implements Listener {
 				text = state.getNote().isSharped() ? text + "#" : text;
 				text = state.getNote().getOctave() == 0 ? text : text + " ^";
 			} else {
-				org.bukkit.block.NoteBlock state = (org.bukkit.block.NoteBlock) block.getState();
+				org.bukkit.block.data.type.NoteBlock state = (org.bukkit.block.data.type.NoteBlock) block.getState();
 				Tone tone = state.getNote().getTone();
 				String inst = MusicManager.getMusicConfig().getString("Instruments." + LegacyInstrumentUtils.getInstrumentNameFromLegacy(block.getRelative(BlockFace.DOWN).getType().toString().toUpperCase()));
 				text = ChatColor.GOLD + inst + " " + getColor(tone) + tone.toString().toUpperCase();
