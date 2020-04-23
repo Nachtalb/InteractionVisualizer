@@ -50,7 +50,8 @@ public class InteractionVisualizer extends JavaPlugin {
 	public static boolean vanish = false;
 	public static boolean cmi = false;
 	public static boolean ess3 = false;
-	
+	public static boolean bp2 = false;
+
 	public static List<Player> itemStand = new CopyOnWriteArrayList<Player>();
 	public static List<Player> itemDrop = new CopyOnWriteArrayList<Player>();
 	public static List<Player> holograms = new CopyOnWriteArrayList<Player>();
@@ -97,6 +98,10 @@ public class InteractionVisualizer extends JavaPlugin {
 		if (getServer().getPluginManager().getPlugin("Essentials") != null) {
 			hookMessage("Essentials");
 			ess3 = true;
+		}
+		if (getServer().getPluginManager().getPlugin("BeaconPlus2") != null) {
+			hookMessage("BeaconPlus2");
+			bp2 = true;
 		}
 		//EntityCreator.setup();
 		

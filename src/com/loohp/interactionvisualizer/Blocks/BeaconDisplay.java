@@ -3,6 +3,9 @@ package com.loohp.interactionvisualizer.Blocks;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Random;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -10,6 +13,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.DyeColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.block.Beacon;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.event.EventHandler;
@@ -17,8 +21,11 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.potion.PotionEffect;
 import org.bukkit.util.EulerAngle;
 import org.bukkit.util.Vector;
+import thito.beaconplus.objects.BeaconData;
+import thito.beaconplus.BeaconPlusCore;
 
 import com.loohp.interactionvisualizer.InteractionVisualizer;
 import com.loohp.interactionvisualizer.Holder.ArmorStand;
@@ -30,6 +37,9 @@ import com.loohp.interactionvisualizer.Manager.TileEntityManager;
 import com.loohp.interactionvisualizer.Utils.RomanNumberUtils;
 
 import net.md_5.bungee.api.ChatColor;
+import thito.beaconplus.objects.BeaconEffect;
+
+import static thito.beaconplus.BeaconPlusCore.getRangeByPower;
 
 public class BeaconDisplay implements Listener {
 	
@@ -37,7 +47,7 @@ public class BeaconDisplay implements Listener {
 	public static ConcurrentHashMap<Block, float[]> placemap = new ConcurrentHashMap<Block, float[]>();
 	private static int checkingPeriod = InteractionVisualizer.beaconChecking;
 	private static int gcPeriod = InteractionVisualizer.gcPeriod;
-	
+
 	@EventHandler(priority=EventPriority.MONITOR)
 	public void onPlaceBeacon(BlockPlaceEvent event) {
 		if (event.isCancelled()) {
@@ -51,10 +61,10 @@ public class BeaconDisplay implements Listener {
 		if (!block.getType().equals(Material.BEACON)) {
 			return;
 		}
-		
+
 		placemap.put(block, new float[]{event.getPlayer().getLocation().getYaw(), event.getPlayer().getLocation().getPitch()});
 	}
-	
+
 	@EventHandler(priority=EventPriority.MONITOR)
 	public void onBreakBeacon(BlockBreakEvent event) {
 		if (event.isCancelled()) {
@@ -81,7 +91,7 @@ public class BeaconDisplay implements Listener {
 		beaconMap.remove(block);
 		CustomBlockDataManager.removeBlock(CustomBlockDataManager.locKey(block.getLocation()));
 	}
-	
+
 	public static int gc() {
 		return Bukkit.getScheduler().runTaskTimerAsynchronously(InteractionVisualizer.plugin, () -> {
 			Iterator<Entry<Block, HashMap<String, Object>>> itr = beaconMap.entrySet().iterator();
@@ -140,8 +150,8 @@ public class BeaconDisplay implements Listener {
 			}
 		}, 0, gcPeriod).getTaskId();
 	}
-	
-	public static int run() {		
+
+	public static int run() {
 		return Bukkit.getScheduler().runTaskTimerAsynchronously(InteractionVisualizer.plugin, () -> {
 			Bukkit.getScheduler().runTask(InteractionVisualizer.plugin, () -> {
 				List<Block> list = nearbyBeacon();
@@ -176,14 +186,14 @@ public class BeaconDisplay implements Listener {
 					}
 				}
 			});
-			
+
 			Iterator<Entry<Block, HashMap<String, Object>>> itr = beaconMap.entrySet().iterator();
 			int count = 0;
 			int maxper = (int) Math.ceil((double) beaconMap.size() / (double) checkingPeriod);
 			int delay = 1;
 			while (itr.hasNext()) {
 				Entry<Block, HashMap<String, Object>> entry = itr.next();
-				
+
 				count++;
 				if (count > maxper) {
 					count = 0;
@@ -191,87 +201,109 @@ public class BeaconDisplay implements Listener {
 				}
 				Bukkit.getScheduler().runTaskLater(InteractionVisualizer.plugin, () -> {
 					Block block = entry.getKey();
+
 					if (!isActive(block.getLocation())) {
 						return;
 					}
+
 					if (!block.getType().equals(Material.BEACON)) {
 						return;
 					}
-					org.bukkit.block.Beacon beacon = (org.bukkit.block.Beacon) block.getState();
-					
-					String arrow = "\u27f9";
-					ChatColor color = getBeaconColor(block);
+
 					ArmorStand line1 = (ArmorStand) entry.getValue().get("1");
 					ArmorStand line2 = (ArmorStand) entry.getValue().get("2");
 					ArmorStand line3 = (ArmorStand) entry.getValue().get("3");
-						
-					String one = color + "T" + beacon.getTier() + " " + arrow + " " + getRange(beacon.getTier()) + "m";
+
+					org.bukkit.block.Beacon beacon = (org.bukkit.block.Beacon) block.getState();
+
+					String one = "";
+					String two = "";
+					String three = "";
+
+					boolean visible = false;
+
+					if (beacon.getTier() != 0) {
+						ChatColor color = getBeaconColor(block);
+						List<String> effects = getEffectLines(beacon, color);
+
+						one = getTierLine(beacon, color);
+						two = effects.get(0);
+						three = effects.get(1);
+
+						visible = true;
+					}
+
 					if (!line1.getCustomName().equals(one)) {
 						line1.setCustomName(one);
-						line1.setCustomNameVisible(true);
+						line1.setCustomNameVisible(visible);
 						PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line1, true);
 					}
-					if (beacon.getTier() == 0) {
-						if (!line2.getCustomName().equals("")) {
-							line2.setCustomName("");
-							line2.setCustomNameVisible(false);
-							PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line2, true);
-						}
-						if (!line3.getCustomName().equals("")) {
-							line3.setCustomName("");
-							line3.setCustomNameVisible(false);
-							PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line3, true);
-						}
-					} else {
-						if (beacon.getPrimaryEffect() != null) {
-							String two = color + EffectManager.getEffectConfig().getString("Effects." + beacon.getPrimaryEffect().getType().getName().toUpperCase()) + " " + RomanNumberUtils.toRoman(beacon.getPrimaryEffect().getAmplifier() + 1);
-							if (!line2.getCustomName().equals(two)) {
-								line2.setCustomName(two);
-								line2.setCustomNameVisible(true);
-								PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line2, true);
-							}
-						} else {
-							if (!line2.getCustomName().equals("")) {
-								line2.setCustomName("");
-								line2.setCustomNameVisible(false);
-								PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line2, true);
-							}
-						}
-						if (beacon.getSecondaryEffect() != null) {
-							String three = color + EffectManager.getEffectConfig().getString("Effects." + beacon.getSecondaryEffect().getType().getName().toUpperCase()) + " " + RomanNumberUtils.toRoman(beacon.getSecondaryEffect().getAmplifier() + 1);
-							if (!line3.getCustomName().equals(three)) {
-								line3.setCustomName(three);
-								line3.setCustomNameVisible(true);
-								PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line3, true);
-							}
-						} else {
-							if (!line3.getCustomName().equals("")) {
-								line3.setCustomName("");
-								line3.setCustomNameVisible(false);
-								PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line3, true);
-							}
-						}
+					if (!line2.getCustomName().equals(two)) {
+						line2.setCustomName(two);
+						line2.setCustomNameVisible(visible);
+						PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line2, true);
+					}
+					if (!line3.getCustomName().equals(three)) {
+						line3.setCustomName(three);
+						line3.setCustomNameVisible(visible);
+						PacketManager.updateArmorStand(InteractionVisualizer.getOnlinePlayers(), line3, true);
 					}
 				}, delay);
 			}
-		}, 0, checkingPeriod).getTaskId();		
+		}, 0, checkingPeriod).getTaskId();
 	}
-	
+
+	private static String getTierLine(Beacon beacon, ChatColor color) {
+		if (InteractionVisualizer.bp2) {
+			int powerValue = BeaconPlusCore.getData(beacon).getPowerValue();
+			return color + String.format("P%s \u27f9 %sm", powerValue, getRangeByPower(powerValue));
+		}
+
+		int tier = beacon.getTier();
+		return color + String.format("T%s \u27f9 %sm", tier, getRange(tier));
+	}
+
+	private static List<String> getEffectLines(Beacon beacon, ChatColor color) {
+		String firstLine;
+		String secondLine;
+		if (InteractionVisualizer.bp2) {
+			BeaconData bp2Data = BeaconPlusCore.getData(beacon);
+			List<BeaconEffect> effects = new ArrayList<>(bp2Data.getEffects());
+			Random rand = new Random();
+			int firstIndex = rand.nextInt(effects.size());
+			firstIndex = firstIndex + 1 == effects.size() ? firstIndex - 1: firstIndex;
+
+			firstLine = String.format("%s %s", effects.get(firstIndex).getDisplayName(), bp2Data.getLevel(effects.get(firstIndex)));
+			secondLine = String.format("%s %s", effects.get(firstIndex + 1).getDisplayName(), bp2Data.getLevel(effects.get(firstIndex + 1)));
+		} else {
+			PotionEffect primaryEffect = beacon.getPrimaryEffect();
+			PotionEffect secondaryEffect = beacon.getSecondaryEffect();
+
+			firstLine = primaryEffect == null ? "" : EffectManager.getEffectConfig().getString("Effect." + primaryEffect.getType().getName().toUpperCase())
+					+ " " + RomanNumberUtils.toRoman(primaryEffect.getAmplifier() + 1);
+
+			secondLine = secondaryEffect == null ? "" : EffectManager.getEffectConfig().getString("Effect." + secondaryEffect.getType().getName().toUpperCase())
+					+ " " + RomanNumberUtils.toRoman(secondaryEffect.getAmplifier() + 1);
+		}
+
+		return Arrays.asList(color + firstLine, color + secondLine);
+	}
+
 	public static List<Block> nearbyBeacon() {
 		return TileEntityManager.getTileEntites("beacon");
 	}
-	
+
 	public static boolean isActive(Location loc) {
 		return PlayerRangeManager.hasPlayerNearby(loc);
 	}
-	
+
 	public static HashMap<String, ArmorStand> spawnArmorStands(Block block, BlockFace face) {
 		HashMap<String, ArmorStand> map = new HashMap<String, ArmorStand>();
-		Location origin = block.getLocation();	
-					
+		Location origin = block.getLocation();
+
 		Location target = block.getRelative(face).getLocation();
 		Vector direction = target.toVector().subtract(origin.toVector()).multiply(0.7);
-		
+
 		Location loc = block.getLocation().clone().add(direction).add(0.5, 0.25, 0.5);
 		ArmorStand line1 = new ArmorStand(loc.clone().add(0.0, 0.25, 0.0));
 		setStand(line1);
@@ -279,18 +311,18 @@ public class BeaconDisplay implements Listener {
 		setStand(line2);
 		ArmorStand line3 = new ArmorStand(loc.clone().add(0.0, -0.25, 0.0));
 		setStand(line3);
-		
+
 		map.put("1", line1);
 		map.put("2", line2);
 		map.put("3", line3);
-		
+
 		PacketManager.sendArmorStandSpawn(InteractionVisualizer.holograms, line1);
 		PacketManager.sendArmorStandSpawn(InteractionVisualizer.holograms, line2);
 		PacketManager.sendArmorStandSpawn(InteractionVisualizer.holograms, line3);
-		
+
 		return map;
 	}
-	
+
 	public static void setStand(ArmorStand stand) {
 		stand.setBasePlate(false);
 		stand.setMarker(true);
@@ -302,7 +334,7 @@ public class BeaconDisplay implements Listener {
 		stand.setCustomName("");
 		stand.setRightArmPose(new EulerAngle(0.0, 0.0, 0.0));
 	}
-	
+
 	public static BlockFace getCardinalFacing(float[] dir) {
 
 		double rotation = (dir[0] - 90.0F) % 360.0F;
@@ -323,7 +355,7 @@ public class BeaconDisplay implements Listener {
 		}
 		return BlockFace.NORTH;
 	}
-	
+
 	public static ChatColor getBeaconColor(Block block) {
 		Block glass = block.getRelative(BlockFace.UP);
 		if (!glass.getType().toString().toUpperCase().contains("GLASS")) {
@@ -412,11 +444,11 @@ public class BeaconDisplay implements Listener {
 			case "YELLOW":
 				return ChatColor.YELLOW;
 			default:
-				return ChatColor.WHITE;			
+				return ChatColor.WHITE;
 			}
 		}
 	}
-	
+
 	public static int getRange(int tier) {
 		switch (tier) {
 		case 0:

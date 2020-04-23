@@ -11,6 +11,7 @@ softdepend:
   - CMI
   - Essentials
   - PlaceholderAPI
+  - BeaconPlus2
 depend: [ProtocolLib, LightAPI]
 prefix: InteractionVisualizer
 
